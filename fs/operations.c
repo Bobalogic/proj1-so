@@ -5,8 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "betterassert.h"
+
+
+// Global size of buffer
+size_t SIZE_OF_BUFFER = 128;
 
 tfs_params tfs_default_params() {
     tfs_params params = {
@@ -246,6 +251,34 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     (void)dest_path;
     // ^ this is a trick to keep the compiler from complaining about unused
     // variables. TODO: remove
+
+    // Opening the file outside of the FS
+    FILE *myfile;
+    myfile = fopen(source_path, "r");
+    if (myfile == NULL)
+        fprintf(stderr, "open error: %s\n", strerror(errno));
+    char buffer[SIZE_OF_BUFFER];
+
+    // To check if file should raise error
+    int bytes_read = (int)fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile);
+    if (bytes_read < 0){
+        fprintf(stderr, "read error: %s\n", strerror(errno));
+        return -1;
+    }  
+
+    // To copy outside tecnicoFS to a file inside of it
+    else{
+        while (fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile) > 0){
+            tfs_open(dest_path, TFS_O_APPEND);
+            int path_inumber = tfs_lookup(dest_path, ROOT_DIR_INUM);
+            tfs_write(path_inumber, buffer, SIZE_OF_BUFFER);
+            memset(buffer, 0, sizeof(buffer));
+        }
+    }
+    /* close the file */
+    fclose(myfile);
+
+   return 0;
 
     PANIC("TODO: tfs_copy_from_external_fs");
 }
