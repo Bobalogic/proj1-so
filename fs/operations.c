@@ -255,7 +255,7 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     FILE *myfile;
     myfile = fopen(source_path, "r");
     if (myfile == NULL)
-        fprintf(stderr, "open error: %s\n", strerror(errno));
+        return -1;
     char buffer[SIZE_OF_BUFFER];
 
     // To check if file should raise error
@@ -264,15 +264,15 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
         fprintf(stderr, "read error: %s\n", strerror(errno));
         return -1;
     }  
-
+    
     // To copy outside tecnicoFS to a file inside of it
     else{
         while (fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile) > 0){
-            tfs_open(dest_path, TFS_O_APPEND);
-            int path_inumber = tfs_lookup(dest_path, ROOT_DIR_INUM);
-            // Error if file does not exist
-            if (path_inumber == -1)
-                fprintf(stderr, "file doesn't exist: %s\n", strerror(errno));
+            int state = tfs_open(dest_path, TFS_O_APPEND);
+            if (state == -1)
+                tfs_open(dest_path, TFS_O_CREAT);
+            inode_t const *dir_inode = inode_get(ROOT_DIR_INUM);
+            int path_inumber = tfs_lookup(dest_path, dir_inode);
             tfs_write(path_inumber, buffer, SIZE_OF_BUFFER);
             memset(buffer, 0, sizeof(buffer));
         }
