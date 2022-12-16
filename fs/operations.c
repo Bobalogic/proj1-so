@@ -250,7 +250,6 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     (void)source_path;
     (void)dest_path;
     // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
 
     // Opening the file outside of the FS
     FILE *myfile;
@@ -271,6 +270,9 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
         while (fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile) > 0){
             tfs_open(dest_path, TFS_O_APPEND);
             int path_inumber = tfs_lookup(dest_path, ROOT_DIR_INUM);
+            // Error if file does not exist
+            if (path_inumber == -1)
+                fprintf(stderr, "file doesn't exist: %s\n", strerror(errno));
             tfs_write(path_inumber, buffer, SIZE_OF_BUFFER);
             memset(buffer, 0, sizeof(buffer));
         }
@@ -285,4 +287,3 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
 
 
-TESTEEEEEE
