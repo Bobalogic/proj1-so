@@ -126,8 +126,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         offset = 0;
     } else {
         return -1;
-    }
-
+}
     // Finally, add entry to the open file table and return the corresponding
     // handle
     return add_to_open_file_table(inum, offset);
@@ -147,13 +146,21 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);  
+    int target_inum = tfs_lookup(target, root_dir_inode);
 
-    PANIC("TODO: tfs_link");
-}
+    // If target is not a valid entry
+    if (target_inum == -1)
+        return -1;
+
+    // Add entry in the root directory
+    if (add_dir_entry(root_dir_inode, link_name + 1, target_inum) == -1) {
+        inode_delete(target_inum);
+        return -1; // no space in directory
+    }
+    // Need to update hardlink counter ??
+    return 0;
+} 
 
 int tfs_close(int fhandle) {
     open_file_entry_t *file = get_open_file_entry(fhandle);
@@ -247,31 +254,25 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    (void)source_path;
-    (void)dest_path;
-    // ^ this is a trick to keep the compiler from complaining about unused
 
     // Opening the file outside of the FS
     FILE *myfile;
-    inode_t const *dir_inode = inode_get(ROOT_DIR_INUM);
     char buffer[SIZE_OF_BUFFER];
 
     myfile = fopen(source_path, "r");
     if (myfile == NULL)
         return -1;
-
     
     // To copy outside tecnicoFS to a file inside of it
     else{
-        while (fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile) > 0){
-            int dest_fhandle = tfs_open(dest_path, TFS_O_APPEND);
-
-            // If destination file doesn't exist
+        int dest_fhandle = tfs_open(dest_path, TFS_O_CREAT);
+        // If destination file doesn't exist
             if (dest_fhandle == -1)
-                dest_fhandle = tfs_open(dest_path, TFS_O_CREAT);
-            int path_inumber = tfs_lookup(dest_path, dir_inode);
-            tfs_write(path_inumber, buffer, sizeof(buffer) + 1);
-            memset(buffer, 0, sizeof(buffer));
+                return -1;
+    
+        while (fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile) > 0  ){
+            tfs_write(dest_fhandle, buffer, sizeof(buffer) - 1);
+            memset(buffer, 0, sizeof(buffer) - 1);
 
         }
     }
@@ -279,6 +280,3 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
    return 0;
 
 }
-
-
-
