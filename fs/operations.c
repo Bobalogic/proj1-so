@@ -253,36 +253,31 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     // Opening the file outside of the FS
     FILE *myfile;
+    inode_t const *dir_inode = inode_get(ROOT_DIR_INUM);
+    char buffer[SIZE_OF_BUFFER];
+
     myfile = fopen(source_path, "r");
     if (myfile == NULL)
         return -1;
-    char buffer[SIZE_OF_BUFFER];
 
-    // To check if file should raise error
-    int bytes_read = (int)fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile);
-    if (bytes_read < 0){
-        fprintf(stderr, "read error: %s\n", strerror(errno));
-        return -1;
-    }  
     
     // To copy outside tecnicoFS to a file inside of it
     else{
-        while (fread(&buffer, sizeof(char), sizeof(buffer)-1, myfile) > 0){
-            int state = tfs_open(dest_path, TFS_O_APPEND);
-            if (state == -1)
-                tfs_open(dest_path, TFS_O_CREAT);
-            inode_t const *dir_inode = inode_get(ROOT_DIR_INUM);
+        while (fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile) > 0){
+            int dest_fhandle = tfs_open(dest_path, TFS_O_APPEND);
+
+            // If destination file doesn't exist
+            if (dest_fhandle == -1)
+                dest_fhandle = tfs_open(dest_path, TFS_O_CREAT);
             int path_inumber = tfs_lookup(dest_path, dir_inode);
-            tfs_write(path_inumber, buffer, SIZE_OF_BUFFER);
+            tfs_write(path_inumber, buffer, sizeof(buffer) + 1);
             memset(buffer, 0, sizeof(buffer));
+
         }
     }
-    /* close the file */
-    fclose(myfile);
 
    return 0;
 
-    PANIC("TODO: tfs_copy_from_external_fs");
 }
 
 
