@@ -16,7 +16,9 @@ void assert_contents_ok(char const *path) {
     assert(f != -1);
 
     uint8_t buffer[sizeof(file_contents)];
-    assert(tfs_read(f, buffer, sizeof(buffer)) == sizeof(buffer));
+    ssize_t r = tfs_read(f, buffer, sizeof(buffer));
+    int d = sizeof(buffer);
+    assert(r == d);
     assert(memcmp(buffer, file_contents, sizeof(buffer)) == 0);
 
     assert(tfs_close(f) != -1);
@@ -27,7 +29,8 @@ void assert_empty_file(char const *path) {
     assert(f != -1);
 
     uint8_t buffer[sizeof(file_contents)];
-    assert(tfs_read(f, buffer, sizeof(buffer)) == 0);
+    ssize_t r = tfs_read(f, buffer, sizeof(buffer));
+    assert(r == 0);
 
     assert(tfs_close(f) != -1);
 }

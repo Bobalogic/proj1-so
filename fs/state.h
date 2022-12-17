@@ -19,12 +19,15 @@ typedef struct {
 
 typedef enum { T_FILE, T_DIRECTORY } inode_type;
 
+// New
+typedef enum { HARD, SOFT } inode_link;
+
 /**
  * Inode
  */
 typedef struct {
     inode_type i_node_type;
-
+    inode_link i_node_link;
     size_t i_size;
     int i_data_block;
 

@@ -93,6 +93,9 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     if (inum >= 0) {
         // The file already exists
         inode_t *inode = inode_get(inum);
+        if (inode->i_node_link == SOFT){
+            inode = inode_get(inode->i_data_block);
+        }
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
 
@@ -137,12 +140,17 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM); 
+    int sym_inumber = inode_create(T_FILE);
+    add_dir_entry(root_dir_inode, link_name + 1, sym_inumber);
+    
+    inode_t *sym_inode = inode_get(sym_inumber);
+    sym_inode->i_node_link = SOFT;
 
-    PANIC("TODO: tfs_sym_link");
+    int target_inum = tfs_lookup(target, root_dir_inode);
+
+    sym_inode->i_data_block = target_inum;
+    return 0;
 }
 
 int tfs_link(char const *target, char const *link_name) {
