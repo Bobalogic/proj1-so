@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include <pthread.h>
 #include "betterassert.h"
 
 
@@ -254,10 +255,13 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_unlink(char const *target) {
-    (void)target;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // O target vai representar o novo link que foi criado que vamos eliminar
 
+    // unlink() deletes a name from the filesystem.  If that name was the last link to a file
+    // and no processes have the file open, the file is deleted and the space it was using is
+    // made available for reuse.
+    
+    (void) target;
     PANIC("TODO: tfs_unlink");
 }
 
@@ -277,14 +281,12 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
         // If destination file doesn't exist
             if (dest_fhandle == -1)
                 return -1;
-    
-        while (fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile) > 0  ){
-            tfs_write(dest_fhandle, buffer, sizeof(buffer) - 1);
+        size_t aux = 1;
+        while (aux > 0  ){
+            aux = fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile);
+            tfs_write(dest_fhandle, buffer,aux);
             memset(buffer, 0, sizeof(buffer) - 1);
-
         }
-    }
-
+        }
    return 0;
-
 }
