@@ -10,6 +10,9 @@
 #include <pthread.h>
 #include "betterassert.h"
 
+static pthread_mutex_t global_lock;
+static pthread_cond_t cond;
+
 
 // Global size of buffer
 size_t SIZE_OF_BUFFER = 128;
