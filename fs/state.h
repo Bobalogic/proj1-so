@@ -30,6 +30,8 @@ typedef struct {
     inode_link i_node_link;
     size_t i_size;
     int i_data_block;
+    int hl_count;
+    char const *sym_path;
 
     // in a more complete FS, more fields could exist here
 } inode_t;

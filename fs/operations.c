@@ -94,8 +94,11 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     if (inum >= 0) {
         // The file already exists
         inode_t *inode = inode_get(inum);
+
+        // If inode is a symbolic link
         if (inode->i_node_link == SOFT){
-            inode = inode_get(inode->i_data_block);
+            inum = tfs_lookup(inode->sym_path, root_dir_inode);
+            inode = inode_get(inum);
         }
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
@@ -141,16 +144,21 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM); 
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+
+    // Create inode for the symbolic link 
     int sym_inumber = inode_create(T_FILE);
-    add_dir_entry(root_dir_inode, link_name + 1, sym_inumber);
+
+    // Add entry in the root directory
+    if (add_dir_entry(root_dir_inode, link_name + 1, sym_inumber) == -1) {
+        inode_delete(sym_inumber);
+        return -1; // no space in directory
+    }
     
     inode_t *sym_inode = inode_get(sym_inumber);
     sym_inode->i_node_link = SOFT;
+    sym_inode->sym_path = target;   
 
-    int target_inum = tfs_lookup(target, root_dir_inode);
-
-    sym_inode->i_data_block = target_inum;
     return 0;
 }
 
@@ -167,9 +175,42 @@ int tfs_link(char const *target, char const *link_name) {
         inode_delete(target_inum);
         return -1; // no space in directory
     }
-    // Need to update hardlink counter ??
+    
+    // Updating hard link counter
+    inode_t *target_inode = inode_get(target_inum);
+    target_inode -> hl_count = target_inode -> hl_count + 1;
+
     return 0;
 } 
+
+int tfs_unlink(char const *target) {
+    // O target vai representar o novo link que foi criado que vamos eliminar
+
+    // unlink() deletes a name from the filesystem.  If that name was the last link to a file
+    // and no processes have the file open, the file is deleted and the space it was using is
+    // made available for reuse.
+
+    // Getting the link inode
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    int link_inum = tfs_lookup(target, root_dir_inode);
+    inode_t *link_inode = inode_get(link_inum);
+
+    // Separating between hard or soft link
+    if (link_inode->i_node_link == SOFT){
+        clear_dir_entry(link_inode, target);
+        inode_delete(link_inum);
+        return 0;
+    }
+    else {
+        clear_dir_entry(link_inode, target);
+        link_inode -> hl_count = link_inode -> hl_count - 1;
+
+        if (link_inode -> hl_count == 0)
+            inode_delete(link_inum);
+    }
+
+    return 0;
+}
 
 int tfs_close(int fhandle) {
     open_file_entry_t *file = get_open_file_entry(fhandle);
@@ -252,17 +293,6 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     }
 
     return (ssize_t)to_read;
-}
-
-int tfs_unlink(char const *target) {
-    // O target vai representar o novo link que foi criado que vamos eliminar
-
-    // unlink() deletes a name from the filesystem.  If that name was the last link to a file
-    // and no processes have the file open, the file is deleted and the space it was using is
-    // made available for reuse.
-    
-    (void) target;
-    PANIC("TODO: tfs_unlink");
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
