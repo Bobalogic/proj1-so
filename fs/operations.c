@@ -13,6 +13,7 @@
 // static pthread_mutex_t global_lock;
 // static pthread_cond_t cond;
 
+printf("Olaaaa");
 
 //Sc - mexer com inodes e mexer com ficheiros abertos
 //Fazer 3 testes para o 1.3
