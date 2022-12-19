@@ -17,21 +17,18 @@ typedef struct {
     int d_inumber;
 } dir_entry_t;
 
-typedef enum { T_FILE, T_DIRECTORY } inode_type;
-
-// New
-typedef enum { HARD, SOFT } inode_link;
+typedef enum { T_FILE, T_DIRECTORY, SYM_LINK } inode_type;
 
 /**
  * Inode
  */
 typedef struct {
     inode_type i_node_type;
-    inode_link i_node_link;
+    bool isSoft;
     size_t i_size;
     int i_data_block;
     int hl_count;
-    char const *sym_path;
+    char sym_path[MAX_FILE_NAME];
 
     // in a more complete FS, more fields could exist here
 } inode_t;
@@ -66,5 +63,8 @@ void *data_block_get(int block_number);
 int add_to_open_file_table(int inumber, size_t offset);
 void remove_from_open_file_table(int fhandle);
 open_file_entry_t *get_open_file_entry(int fhandle);
+
+// New 
+bool isFreeInode(int inumber);
 
 #endif // STATE_H

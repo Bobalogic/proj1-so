@@ -187,7 +187,7 @@ static int inode_alloc(void) {
  * (i_size will be set to 0, i_data_block to -1).
  *
  * Input:
- *   - i_type: the type of the node (file or directory)
+ *   - i_type: the type of the node (file or directory or symbolic link)
  *
  * Returns inumber of the new inode, or -1 in the case of error.
  *
@@ -235,6 +235,9 @@ int inode_create(inode_type i_type) {
         // In case of a new file, simply sets its size to 0
         inode_table[inumber].i_size = 0;
         inode_table[inumber].i_data_block = -1;
+        inode_table[inumber].hl_count = 1;
+        break;
+    case SYM_LINK:
         break;
     default:
         PANIC("inode_create: unknown file type");
@@ -388,13 +391,14 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
 
     // Iterates over the directory entries looking for one that has the target
     // name
-    for (int i = 0; i < MAX_DIR_ENTRIES; i++)
+    for (int i = 0; i < MAX_DIR_ENTRIES; i++){
         if ((dir_entry[i].d_inumber != -1) &&
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
 
             int sub_inumber = dir_entry[i].d_inumber;
             return sub_inumber;
         }
+    }
 
     return -1; // entry not found
 }
@@ -514,4 +518,9 @@ open_file_entry_t *get_open_file_entry(int fhandle) {
     }
 
     return &open_file_table[fhandle];
+}
+
+// New
+bool isFreeInode(int inumber) {
+    return freeinode_ts[inumber] == FREE;
 }
