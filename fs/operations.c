@@ -14,6 +14,11 @@
 // static pthread_cond_t cond;
 
 
+//Sc - mexer com inodes e mexer com ficheiros abertos
+//Fazer 3 testes para o 1.3
+//Fazer 1 teste para o 1.1 e para o 1.2
+//Mutex é mais facil mas dá menos nota, ptt usar os rwlock
+
 // Global size of buffer
 size_t SIZE_OF_BUFFER = 128;
 
@@ -179,7 +184,7 @@ int tfs_link(char const *target, char const *link_name) {
         return -1;
 
     if (target_inode->i_node_type == SYM_LINK)
-        return -1;  
+        return -1;      
 
     // Add entry in the root directory
     if (add_dir_entry(root_dir_inode, link_name + 1, target_inum) == -1) {
