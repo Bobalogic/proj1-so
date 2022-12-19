@@ -13,15 +13,11 @@
 // static pthread_mutex_t global_lock;
 // static pthread_cond_t cond;
 
-printf("Olaaaa");
-
 //Sc - mexer com inodes e mexer com ficheiros abertos
 //Fazer 3 testes para o 1.3
 //Fazer 1 teste para o 1.1 e para o 1.2
 //Mutex é mais facil mas dá menos nota, ptt usar os rwlock
 
-// Global size of buffer
-size_t SIZE_OF_BUFFER = 128;
 
 tfs_params tfs_default_params() {
     tfs_params params = {
@@ -157,6 +153,10 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
+    // Link must have a valid name
+    if (!valid_pathname(link_name))
+        return -1;
+
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
     // Create inode for the symbolic link 
@@ -176,6 +176,10 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
+    // Link must have a valid name
+    if (!valid_pathname(link_name) || !valid_pathname(target))
+        return -1;
+
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);  
     int target_inum = tfs_lookup(target, root_dir_inode);
     inode_t *target_inode = inode_get(target_inum);
@@ -184,6 +188,7 @@ int tfs_link(char const *target, char const *link_name) {
     if (target_inum == -1)
         return -1;
 
+    // If target is a sym link
     if (target_inode->i_node_type == SYM_LINK)
         return -1;      
 
@@ -200,24 +205,17 @@ int tfs_link(char const *target, char const *link_name) {
 } 
 
 int tfs_unlink(char const *target) {
-    // O target vai representar o novo link que foi criado que vamos eliminar
 
-    // unlink() deletes a name from the filesystem.  If that name was the last link to a file
-    // and no processes have the file open, the file is deleted and the space it was using is
-    // made available for reuse.
-
-    // TODO: Return -1 if there is any error
-
-    // Getting the link inode
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     int link_inum = tfs_lookup(target, root_dir_inode);
     inode_t *link_inode = inode_get(link_inum);
 
-    // Separating between hard or soft link
+    // If inode is soft
     if (link_inode -> i_node_type == SYM_LINK){
         clear_dir_entry(root_dir_inode, target + 1);
         inode_delete(link_inum);
     }
+    // If inode is hard
     else {
         clear_dir_entry(root_dir_inode, target + 1);
         link_inode -> hl_count = link_inode -> hl_count - 1;
@@ -315,27 +313,37 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
+    /** TODO: Limit the dimension to 1 block
+     * if dest_path doesn't exist, this should be created
+     * if dest_path already exists, the new contents should replace, not append, the old contents
+     */
 
-    // Opening the file outside of the FS
     FILE *myfile;
-    char buffer[SIZE_OF_BUFFER];
+    char buffer[128];
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    int dest_fhandle;
 
+    // Source path doesn't exist
     myfile = fopen(source_path, "r");
-    if (myfile == NULL)
+    if (myfile == NULL){
         return -1;
+    }
+
+    // Destination path already exists    
+    if (find_in_dir(root_dir_inode, dest_path + 1) != -1){
+        dest_fhandle = tfs_open(dest_path, TFS_O_TRUNC);
+        dest_fhandle = tfs_open(dest_path, TFS_O_APPEND);
+    }
     
-    // To copy outside tecnicoFS to a file inside of it
-    else{
-        int dest_fhandle = tfs_open(dest_path, TFS_O_CREAT);
-        // If destination file doesn't exist
-            if (dest_fhandle == -1)
-                return -1;
-        size_t aux = 1;
-        while (aux > 0  ){
-            aux = fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile);
-            tfs_write(dest_fhandle, buffer,aux);
-            memset(buffer, 0, sizeof(buffer) - 1);
-        }
+    // Destination path doesn't exist
+    else dest_fhandle = tfs_open(dest_path, TFS_O_CREAT);
+
+    
+    size_t aux = 1;
+    while (aux > 0  ){
+        aux = fread(buffer, sizeof(char), sizeof(buffer) - 1, myfile);
+        tfs_write(dest_fhandle, buffer, aux);
+        memset(buffer, 0, sizeof(buffer));
         }
    return 0;
 }
