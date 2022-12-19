@@ -172,10 +172,14 @@ int tfs_sym_link(char const *target, char const *link_name) {
 int tfs_link(char const *target, char const *link_name) {
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);  
     int target_inum = tfs_lookup(target, root_dir_inode);
+    inode_t *target_inode = inode_get(target_inum);
 
     // If target is not a valid entry
     if (target_inum == -1)
         return -1;
+
+    if (target_inode->i_node_type == SYM_LINK)
+        return -1;  
 
     // Add entry in the root directory
     if (add_dir_entry(root_dir_inode, link_name + 1, target_inum) == -1) {
@@ -184,7 +188,6 @@ int tfs_link(char const *target, char const *link_name) {
     }
     
     // Updating hard link counter
-    inode_t *target_inode = inode_get(target_inum);
     target_inode -> hl_count = target_inode -> hl_count + 1;
 
     return 0;
@@ -206,11 +209,11 @@ int tfs_unlink(char const *target) {
 
     // Separating between hard or soft link
     if (link_inode -> i_node_type == SYM_LINK){
-        clear_dir_entry(link_inode, target + 1);
+        clear_dir_entry(root_dir_inode, target + 1);
         inode_delete(link_inum);
     }
     else {
-        clear_dir_entry(link_inode, target + 1);
+        clear_dir_entry(root_dir_inode, target + 1);
         link_inode -> hl_count = link_inode -> hl_count - 1;
 
         if (link_inode -> hl_count == 0){
