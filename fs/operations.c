@@ -10,14 +10,12 @@
 #include <pthread.h>
 #include "betterassert.h"
 
-// static pthread_mutex_t global_lock;
-// static pthread_cond_t cond;
-
 //Sc - mexer com inodes e mexer com ficheiros abertos
 //Fazer 3 testes para o 1.3
 //Fazer 1 teste para o 1.1 e para o 1.2
 //Mutex é mais facil mas dá menos nota, ptt usar os rwlock
 
+pthread_rwlock_t trinco;
 
 tfs_params tfs_default_params() {
     tfs_params params = {
@@ -25,12 +23,17 @@ tfs_params tfs_default_params() {
         .max_block_count = 1024,
         .max_open_files_count = 16,
         .block_size = 1024,
+        
     };
     return params;
 }
 
 int tfs_init(tfs_params const *params_ptr) {
     tfs_params params;
+
+    //Initialize of rwLock TODO: Será que é aqui ou global?
+    pthread_rwlock_init(&trinco, NULL);
+
     if (params_ptr != NULL) {
         params = *params_ptr;
     } else {
@@ -74,13 +77,14 @@ static bool valid_pathname(char const *name) {
  */
 static int tfs_lookup(char const *name, inode_t const *root_inode) {
     // TODO: assert that root_inode is the root directory
+    pthread_rwlock_wrlock(&trinco);
     if (!valid_pathname(name)) {
         return -1;
     }
 
     // skip the initial '/' character
     name++;
-
+    pthread_rwlock_unlock(&trinco);
     return find_in_dir(root_inode, name);
 }
 
@@ -90,10 +94,13 @@ int get_hard_link_inum(int inum) {
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
 
     while (inode -> i_node_type == SYM_LINK){
+        pthread_rwlock_rdlock(&trinco);
         inum = tfs_lookup(inode -> sym_path, root_dir_inode);
         if (inum < 0)
             return -1;
         inode = inode_get(inum);
+        pthread_rwlock_unlock(&trinco);
+
     }
 
     return inum;
@@ -102,6 +109,11 @@ int get_hard_link_inum(int inum) {
 
 
 int tfs_open(char const *name, tfs_file_mode_t mode) {
+
+    pthread_rwlock_wrlock(&trinco);
+    //TODO: Será que aqui tenho de subdividir todos os if, visto que há momentos em que é write e outros read?
+    // Como por exemplo fiz no tfs_read()? Perfuntar ao prof
+
     // Checks if the path name is valid
     if (!valid_pathname(name)) {
         return -1;
@@ -162,6 +174,8 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     } else {
         return -1;
 }
+
+    pthread_rwlock_unlock(&trinco);
     // Finally, add entry to the open file table and return the corresponding
     // handle
     return add_to_open_file_table(inum, offset);
@@ -172,6 +186,9 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
+
+    pthread_rwlock_rdlock(&trinco);
+
     // Link must have a valid name
     if (!valid_pathname(link_name))
         return -1;
@@ -191,10 +208,14 @@ int tfs_sym_link(char const *target, char const *link_name) {
     sym_inode -> i_node_type = SYM_LINK;
     strcpy(sym_inode -> sym_path, target);  
 
+    pthread_rwlock_unlock(&trinco);
+
     return 0;
 }
 
 int tfs_link(char const *target, char const *link_name) {
+
+    pthread_rwlock_rdlock(&trinco);
     // Link must have a valid name
     if (!valid_pathname(link_name) || !valid_pathname(target))
         return -1;
@@ -221,14 +242,17 @@ int tfs_link(char const *target, char const *link_name) {
         inode_delete(target_inum);
         return -1; // no space in directory
     }
-    
+    pthread_rwlock_unlock(&trinco);
+
+    pthread_rwlock_wrlock(&trinco);
     // Updating hard link counter
     target_inode -> hl_count = target_inode -> hl_count + 1;
-
+    pthread_rwlock_unlock(&trinco);
     return 0;
 } 
 
 int tfs_unlink(char const *target) {
+    pthread_rwlock_rdlock(&trinco);
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     int link_inum = tfs_lookup(target, root_dir_inode);
@@ -250,7 +274,7 @@ int tfs_unlink(char const *target) {
             inode_delete(link_inum);
         }
     }
-
+    pthread_rwlock_unlock(&trinco);
     return 0;
 }
 
@@ -267,6 +291,8 @@ int tfs_close(int fhandle) {
 
 ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     open_file_entry_t *file = get_open_file_entry(fhandle);
+
+
     if (file == NULL) {
         return -1;
     }
@@ -275,12 +301,15 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     inode_t *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_write: inode of open file deleted");
 
+    pthread_rwlock_wrlock(&trinco);
     // Determine how many bytes to write
     size_t block_size = state_block_size();
     if (to_write + file->of_offset > block_size) {
         to_write = block_size - file->of_offset;
     }
+    pthread_rwlock_unlock(&trinco);
 
+    pthread_rwlock_wrlock(&trinco);
     if (to_write > 0) {
         if (inode->i_size == 0) {
             // If empty file, allocate new block
@@ -297,13 +326,14 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
 
         // Perform the actual write
         memcpy(block + file->of_offset, buffer, to_write);
-
+    
         // The offset associated with the file handle is incremented accordingly
         file->of_offset += to_write;
         if (file->of_offset > inode->i_size) {
             inode->i_size = file->of_offset;
         }
     }
+    pthread_rwlock_unlock(&trinco);
 
     return (ssize_t)to_write;
 }
@@ -314,6 +344,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         return -1;
     }
 
+    pthread_rwlock_rdlock(&trinco);
     // From the open file table entry, we get the inode
     inode_t const *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
@@ -323,7 +354,9 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     if (to_read > len) {
         to_read = len;
     }
+    pthread_rwlock_unlock(&trinco);
 
+    pthread_rwlock_wrlock(&trinco);
     if (to_read > 0) {
         void *block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_read: data block deleted mid-read");
@@ -333,7 +366,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         // The offset associated with the file handle is incremented accordingly
         file->of_offset += to_read;
     }
-
+    pthread_rwlock_unlock(&trinco);
     return (ssize_t)to_read;
 }
 
