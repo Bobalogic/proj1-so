@@ -28,6 +28,7 @@ typedef struct {
     int i_data_block;
     int hl_count;
     char sym_path[MAX_FILE_NAME];
+    pthread_rwlock_t trinco;
 
     // in a more complete FS, more fields could exist here
 } inode_t;
