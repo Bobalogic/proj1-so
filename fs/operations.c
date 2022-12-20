@@ -31,7 +31,7 @@ tfs_params tfs_default_params() {
 int tfs_init(tfs_params const *params_ptr) {
     tfs_params params;
 
-    //Initialize of rwLock TODO: Será que é aqui ou global?
+    //Initialize of rwLock TODO: Será que é aqui ou global
     pthread_rwlock_init(&trinco, NULL);
 
     if (params_ptr != NULL) {
