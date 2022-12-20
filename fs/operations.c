@@ -84,6 +84,23 @@ static int tfs_lookup(char const *name, inode_t const *root_inode) {
     return find_in_dir(root_inode, name);
 }
 
+// New
+int get_hard_link_inum(int inum) {
+    inode_t *inode = inode_get(inum);
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+
+    while (inode -> i_node_type == SYM_LINK){
+        inum = tfs_lookup(inode -> sym_path, root_dir_inode);
+        if (inum < 0)
+            return -1;
+        inode = inode_get(inum);
+    }
+
+    return inum;
+}
+
+
+
 int tfs_open(char const *name, tfs_file_mode_t mode) {
     // Checks if the path name is valid
     if (!valid_pathname(name)) {
@@ -94,6 +111,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     ALWAYS_ASSERT(root_dir_inode != NULL,
                   "tfs_open: root dir inode must exist");
     int inum = tfs_lookup(name, root_dir_inode);
+
     size_t offset;
 
     if (inum >= 0) {
@@ -103,12 +121,13 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 
         // If inode is a symbolic link
         if (inode -> i_node_type == SYM_LINK){
-            inum = tfs_lookup(inode -> sym_path, root_dir_inode);
+            inum = get_hard_link_inum(inum);
+            if (inum == -1)
+                return -1;
             if (isFreeInode(inum))
                 return -1;
-            inode = inode_get(inum); 
         }
-            
+
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
 
@@ -182,15 +201,20 @@ int tfs_link(char const *target, char const *link_name) {
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);  
     int target_inum = tfs_lookup(target, root_dir_inode);
-    inode_t *target_inode = inode_get(target_inum);
 
     // If target is not a valid entry
     if (target_inum == -1)
         return -1;
 
+    inode_t *target_inode = inode_get(target_inum);
+
     // If target is a sym link
-    if (target_inode->i_node_type == SYM_LINK)
+    if (target_inode -> i_node_type == SYM_LINK)
         return -1;      
+
+    // If target has no hard links
+    if (target_inode -> hl_count == 0)
+        return -1;
 
     // Add entry in the root directory
     if (add_dir_entry(root_dir_inode, link_name + 1, target_inum) == -1) {
@@ -215,6 +239,7 @@ int tfs_unlink(char const *target) {
         clear_dir_entry(root_dir_inode, target + 1);
         inode_delete(link_inum);
     }
+
     // If inode is hard
     else {
         clear_dir_entry(root_dir_inode, target + 1);

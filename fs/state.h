@@ -24,7 +24,6 @@ typedef enum { T_FILE, T_DIRECTORY, SYM_LINK } inode_type;
  */
 typedef struct {
     inode_type i_node_type;
-    bool isSoft;
     size_t i_size;
     int i_data_block;
     int hl_count;
