@@ -1,5 +1,3 @@
-# projeto-so-2022-23
+# 1st OS Project
 
-Código fornecido para o projeto de Sistemas Operativos do ano letivo 2022-2023.
-
-Consultar o [enunciado do projeto](https://github.com/tecnico-so/enunciado-proj-so-2022-23).
+Work project made for the Operating Systems Course in college.
